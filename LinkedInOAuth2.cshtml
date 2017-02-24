@@ -1,0 +1,86 @@
+@using Skybrud.Social.LinkedIn
+@using Skybrud.Social.LinkedIn.ExtensionMethods
+@using Skybrud.Social.LinkedIn.OAuth2
+@using Skybrud.Social.LinkedIn.Responses.Users
+@{
+    
+    <h2>LinkedIn: OAuth</h2>
+
+    string baseUrl = "http://social-legacy.abjerner/linkedin/oauth2/";
+
+    // Handle input
+    string action = Request.QueryString["do"];
+    string code = Request.QueryString["code"];
+    string state = Request.QueryString["state"];
+
+    // Initialize the OAuth client
+    LinkedInOAuthClient oauth = new LinkedInOAuthClient {
+        ClientId = "The client ID of your app",
+        ClientSecret = "The client secret of your app",
+        RedirectUri = baseUrl
+    };
+
+    if (action == "login") {
+
+        // Redirect the user to the authentication page at LinkedIn.com
+        Response.Redirect(oauth.GetAuthorizationUrl("bacon", "r_basicprofile", "r_emailaddress"));
+
+    } else if (!String.IsNullOrWhiteSpace(code)) {
+
+        LinkedInAccessTokenResponse token = oauth.GetAccessTokenFromAuthCode(code);
+        oauth.AccessToken = token.AccessToken;
+
+        DateTime expiresAt = DateTime.Now.AddSeconds(token.ExpiresIn.TotalSeconds);
+
+        LinkedInService service = LinkedInService.CreateFromAccessToken(oauth.AccessToken);
+
+        LinkedInGetUserResponse response = service.Users.GetUser("~", "id", "first-name", "last-name", "email-address");
+
+        <table class="table details">
+            <tr>
+                <th>Expires in</th>
+                <td>@token.ExpiresIn.TotalSeconds (~@token.ExpiresIn.TotalDays days &bull; @expiresAt.ToString("r"))
+                </td>
+            </tr>
+            <tr>
+                <th>Access Token</th>
+                <td>@token.AccessToken</td>
+            </tr>
+        </table>
+
+        <table class="table details">
+            <tr>
+                <th>ID</th>
+                <td>@response.Body.Id</td>
+            </tr>
+            <tr>
+                <th>Name</th>
+                <td>@response.Body.FirstName @response.Body.LastName</td>
+            </tr>
+            <tr>
+                <th>Email</th>
+                <td>@response.Body.XElement.GetElementValue("email-address")</td>
+            </tr>
+        </table>
+
+        <pre>@response.Body.XElement</pre>
+
+        <br />
+
+        <a href="@baseUrl?do=login" class="btn btn-primary">Login again</a>
+
+    } else if (Request.QueryString["error"] != null) {
+
+        <div class="alert alert-warning">
+            <b>@Request.QueryString["error"]</b><br />@Request.QueryString["error_description"]
+        </div>
+
+        <a href="@baseUrl?do=login" class="btn btn-primary">Login with LinkedIn</a>
+
+    } else {
+
+        <a href="@baseUrl?do=login" class="btn btn-primary">Login with LinkedIn</a>
+
+    }
+
+}
